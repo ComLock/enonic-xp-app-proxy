@@ -1,4 +1,6 @@
-//import {toStr} from '/lib/enonic/util';
+import {resolve} from 'uri-js';
+
+import {toStr} from '/lib/enonic/util';
 import {forceArray} from '/lib/enonic/util/data';
 import {request as clientRequest} from '/lib/http-client';
 import {getComponent} from '/lib/xp/portal';
@@ -9,22 +11,65 @@ import runAsSu from '../../../lib/appProxy/runAsSu.es';
 
 const MATCH_ALL_CARRIAGE_RETURNS = /\/r/g;
 const CAPTURE_HEAD = /<head[^>]*>([^]*?)<\/head>/m;
+//const REPLACE_ALL_LINK_HREF = /<link([^>]*?)href="([^"]+)"([^>]*?)<\/link>/gm;
+const REPLACE_ALL_LINK_HREF = /<link([^>]*?)href="([^"]+)"([^>]*)>/gm;
+const REPLACE_ALL_SCRIPT_SRC = /<script([^>]*?)src="([^"]+)"([^>]*)>/gm;
 //const CAPTURE_STYLE = /<style[^>]*>([^]*?)<\/style>/m;
 const MATCH_ALL_STYLE = /<style[^]*?<\/style>/gm;
 //const CAPTURE_BODY = /<body([^]*?)<\/body>/m;
 const REPLACE_BODY = /[^]*?<body([^]*?)<\/body>[^]*/m;
-const REMOVE_LINK = /<link[^]*?<\/link>/gm;
+//const REMOVE_LINK = /<link[^]*?<\/link>/gm;
 const REMOVE_SCRIPT = /<script[^]*?<\/script>/gm;
 
 
 export function get() {
 	const {config} = getComponent();
 	const {url} = config;
-	const removeLink = config.removeLink !== false;
+	if (!url) { throw new Error('Please input an url to proxy'); }
+	//const removeLink = config.removeLink !== false;
 	const removeScripts = config.removeScripts !== false;
 	const clientRes = clientRequest({url}); //log.info(toStr({clientRes}));
 
 	const resBody = clientRes.body.replace(MATCH_ALL_CARRIAGE_RETURNS, '');
+
+	const urlsToMirror = [];
+	resBody.replace(REPLACE_ALL_LINK_HREF, (match, pre, href, post, offset, string) => {
+		log.info(toStr({
+			match, pre, href, post, offset
+		}));
+		urlsToMirror.push(resolve(url, href));
+		return string;
+	});
+	resBody.replace(REPLACE_ALL_SCRIPT_SRC, (match, pre, src, post, offset, string) => {
+		log.info(toStr({
+			match, pre, src, post, offset
+		}));
+		urlsToMirror.push(resolve(url, src));
+		return string;
+	});
+	log.info(toStr({urlsToMirror}));
+
+	urlsToMirror.forEach((_name) => {
+		const mirrorRes = clientRequest({url: _name});
+		//log.info(toStr({_name, mirrorRes}));
+		if (mirrorRes.status === 200) {
+			runAsSu(
+				() => createOrModifyNode({
+					_name,
+					data: {
+						body: mirrorRes.body
+					}
+				})
+			);
+		}
+	});
+
+	/*let replaceLinkHrefMatch;
+	while ((replaceLinkHrefMatch = REPLACE_LINK_HREF.exec()) !== null) {
+
+	}*/
+
+
 	const head = CAPTURE_HEAD.exec(resBody)[1];
 	//log.info(toStr({head}));
 
@@ -40,9 +85,9 @@ export function get() {
 
 	let body = resBody.replace(REPLACE_BODY, '<div$1</div>');
 
-	if (removeLink) {
+	/*if (removeLink) {
 		body = body.replace(REMOVE_LINK, '');
-	}
+	}*/
 
 	if (removeScripts) {
 		body = body.replace(REMOVE_SCRIPT, '');
