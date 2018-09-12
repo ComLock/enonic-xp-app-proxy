@@ -3,7 +3,7 @@ import {forceArray} from '/lib/enonic/util/data';
 import {request as clientRequest} from '/lib/http-client';
 import {getComponent} from '/lib/xp/portal';
 
-import createNode from '../../../lib/appProxy/createNode.es';
+import createOrModifyNode from '../../../lib/appProxy/createOrModifyNode.es';
 import runAsSu from '../../../lib/appProxy/runAsSu.es';
 
 
@@ -49,12 +49,12 @@ export function get() {
 	}
 	//log.info(toStr({body}));
 
-	runAsSu(() => createNode({
+	body = runAsSu(() => createOrModifyNode({
 		_name: url,
 		data: {
 			body
 		}
-	}));
+	})).data.body;
 
 	const pageContributions = {
 		headBegin: [],
