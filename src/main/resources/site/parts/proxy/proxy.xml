@@ -1,41 +1,41 @@
 <part>
-    <display-name>Proxy</display-name>
-    <config>
-        <input name="url" type="TextLine">
-            <label>Url</label>
-            <occurrences minimum="1" maximum="1"/>
-        </input>
+	<display-name>Proxy</display-name>
+	<config>
+		<input name="url" type="TextLine">
+			<label>Url</label>
+			<occurrences minimum="1" maximum="1"/>
+		</input>
 
-        <input name="removeLink" type="CheckBox">
-            <label>Remove link elements</label>
-            <default>checked</default>
-        </input>
+		<input name="removeLink" type="CheckBox">
+			<label>Remove link elements</label>
+			<default>checked</default>
+		</input>
 
-        <input name="removeScripts" type="CheckBox">
-            <label>Remove scripts</label>
-            <default>checked</default>
-        </input>
+		<input name="removeScripts" type="CheckBox">
+			<label>Remove scripts</label>
+			<default>checked</default>
+		</input>
 
-        <item-set name="pageContributions">
-            <label>Page contributions</label>
-            <occurrences minimum="0" maximum="0"/>
-            <items>
-                <input name="html" type="TextLine">
-                    <label>Html</label>
-                    <occurrences minimum="1" maximum="0"/>
-                </input>
-                <input name="position" type="ComboBox">
-                    <label>Position</label>
-                    <occurrences minimum="0" maximum="1"/>
-                    <config>
-                        <option value="headBegin">headBegin</option>
-                        <option value="headEnd">headEnd</option>
-                        <option value="bodyBegin">bodyBegin</option>
-                        <option value="bodyEnd">bodyEnd</option>
-                    </config>
-                    <default>headBegin</default>
-                </input>
-            </items>
-        </item-set>
-    </config>
+		<item-set name="pageContributions">
+			<label>Page contributions</label>
+			<occurrences minimum="0" maximum="0"/>
+			<items>
+				<input name="html" type="TextLine">
+					<label>Html</label>
+					<occurrences minimum="1" maximum="0"/>
+				</input>
+				<input name="position" type="ComboBox">
+					<label>Position</label>
+					<occurrences minimum="0" maximum="1"/>
+					<config>
+						<option value="headBegin">headBegin</option>
+						<option value="headEnd">headEnd</option>
+						<option value="bodyBegin">bodyBegin</option>
+						<option value="bodyEnd">bodyEnd</option>
+					</config>
+					<default>headBegin</default>
+				</input>
+			</items>
+		</item-set>
+	</config>
 </part>

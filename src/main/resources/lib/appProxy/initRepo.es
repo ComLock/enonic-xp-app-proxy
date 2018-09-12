@@ -2,12 +2,15 @@ import {create, createBranch} from '/lib/xp/repo';
 import {BRANCH_ID, REPO_ID} from './constants.es';
 
 
-export default function initRepo() {
+export default function initRepo({
+	repoId = REPO_ID,
+	branchId = BRANCH_ID
+} = {}) {
 	create({
-		id: REPO_ID
+		id: repoId
 	});
 	createBranch({
-		branchId: BRANCH_ID,
-		repoId: REPO_ID
+		branchId,
+		repoId
 	});
 }

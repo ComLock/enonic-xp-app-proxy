@@ -1,7 +1,10 @@
-import {toStr} from '/lib/enonic/util';
+//import {toStr} from '/lib/enonic/util';
 import {forceArray} from '/lib/enonic/util/data';
 import {request as clientRequest} from '/lib/http-client';
 import {getComponent} from '/lib/xp/portal';
+
+import createNode from '../../../lib/appProxy/createNode.es';
+import runAsSu from '../../../lib/appProxy/runAsSu.es';
 
 
 const MATCH_ALL_CARRIAGE_RETURNS = /\/r/g;
@@ -13,11 +16,13 @@ const REPLACE_BODY = /[^]*?<body([^]*?)<\/body>[^]*/m;
 const REMOVE_LINK = /<link[^]*?<\/link>/gm;
 const REMOVE_SCRIPT = /<script[^]*?<\/script>/gm;
 
+
 export function get() {
 	const {config} = getComponent();
+	const {url} = config;
 	const removeLink = config.removeLink !== false;
 	const removeScripts = config.removeScripts !== false;
-	const clientRes = clientRequest({url: config.url}); //log.info(toStr({clientRes}));
+	const clientRes = clientRequest({url}); //log.info(toStr({clientRes}));
 
 	const resBody = clientRes.body.replace(MATCH_ALL_CARRIAGE_RETURNS, '');
 	const head = CAPTURE_HEAD.exec(resBody)[1];
@@ -44,6 +49,13 @@ export function get() {
 	}
 	//log.info(toStr({body}));
 
+	runAsSu(() => createNode({
+		_name: url,
+		data: {
+			body
+		}
+	}));
+
 	const pageContributions = {
 		headBegin: [],
 		headEnd,
@@ -56,7 +68,7 @@ export function get() {
 		});
 	}
 
-	log.info(toStr({pageContributions}));
+	//log.info(toStr({pageContributions}));
 	return {
 		body,
 		contentType: 'text/html; charset=UTF-8',
