@@ -20,6 +20,7 @@ export default function createNode({
 	const CREATE_PARAMS = {
 		_path,
 		_name: sanitize(_name),
+		modifiedTime: new Date(),
 		displayName,
 		data
 	};

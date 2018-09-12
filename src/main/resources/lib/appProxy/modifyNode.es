@@ -23,6 +23,8 @@ export default function modifyNode({
 		key,
 		editor: (node) => {
 			/* eslint-disable no-param-reassign */
+			//node._timestamp = new Date(); // DOES NOT WORK?
+			node.modifiedTime = new Date();
 			node.displayName = displayName;
 			node.data = data;
 			/* eslint-enable no-param-reassign */

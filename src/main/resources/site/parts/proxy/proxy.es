@@ -1,10 +1,11 @@
 import {resolve} from 'uri-js';
 
 import {newCache} from '/lib/cache';
-//import {toStr} from '/lib/enonic/util';
+import {toStr} from '/lib/enonic/util';
 import {forceArray} from '/lib/enonic/util/data';
 import {request as clientRequest} from '/lib/http-client';
 import {base64Decode, base64Encode} from '/lib/text-encoding';
+import {sanitize} from '/lib/xp/common';
 import {readText} from '/lib/xp/io';
 import {getComponent, serviceUrl} from '/lib/xp/portal';
 
@@ -32,6 +33,45 @@ const uriCache = newCache({
 	size: 1000,
 	expire: 3600 // An hour
 });
+
+
+function nodeFromUri(uri) {
+	const res = clientRequest({url: uri});
+	//log.info(toStr({uri, res}));
+	if (res.status !== 200) { return null; }
+	return runAsSu(
+		() => createOrModifyNode({
+			_name: uri,
+			data: {
+				contentType: res.contentType,
+				base64: base64Encode(res.body)
+			}
+		})
+	);
+}
+
+
+function getOrUpdateRepo(uri) {
+	const path = '/';
+	const key = `${path}${sanitize(uri)}`; //log.info(toStr({key}));
+	let node = runAsSu(() => connection.get(key)); //log.info(toStr({node}));
+	if (node) {
+		const oneHourAgo = new Date();
+		oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+		//log.info(toStr({oneHourAgo}));
+		const modifiedTime = new Date(node.modifiedTime);
+		//log.info(toStr({modifiedTime}));
+		if (modifiedTime < oneHourAgo) {
+			//log.info('modifiedTime older than oneHourAgo :(');
+			node = nodeFromUri(uri);
+		} /*else {
+			log.info('modifiedTime newer than oneHourAgo :)');
+		}*/
+	} else {
+		node = nodeFromUri(uri);
+	}
+	return node;
+}
 
 
 function uriToId(uri) {
@@ -69,10 +109,13 @@ export function get() {
 		/*log.info(toStr({
 			match, pre, href, post, offset
 		}));*/
+		const node = getOrUpdateRepo(resolve(url, href));
+		if (!node) { return `<link${pre}${post}>`; }
 		const newHref = serviceUrl({
 			service: 'getNode',
 			params: {
-				id: uriToId(resolve(url, href))
+				//id: uriToId(resolve(url, href))
+				id: node._id
 			}
 		});
 		const link = `<link${pre}href="${newHref}"${post}>`;
@@ -83,10 +126,13 @@ export function get() {
 		/*log.info(toStr({
 			match, pre, src, post, offset
 		}));*/
+		const node = getOrUpdateRepo(resolve(url, src));
+		if (!node) { return `<script${pre}${post}>`; }
 		const newSrc = serviceUrl({
 			service: 'getNode',
 			params: {
-				id: uriToId(resolve(url, src))
+				//id: uriToId(resolve(url, src))
+				id: node._id
 			}
 		});
 		const script = `<script${pre}href="${newSrc}"${post}>`;

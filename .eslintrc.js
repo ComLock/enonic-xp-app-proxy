@@ -57,7 +57,8 @@ module.exports = {
                 allow: [
                     '_id', // content-type property
                     '_path', // content-type property
-                    '_selected' // option-set property
+                    '_selected', // option-set property
+					'_timestamp' // node property
                 ],
                 allowAfterThis: false,
                 allowAfterSuper: false,
