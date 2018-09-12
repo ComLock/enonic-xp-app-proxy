@@ -1,25 +1,58 @@
 import {resolve} from 'uri-js';
 
-import {toStr} from '/lib/enonic/util';
+import {newCache} from '/lib/cache';
+//import {toStr} from '/lib/enonic/util';
 import {forceArray} from '/lib/enonic/util/data';
 import {request as clientRequest} from '/lib/http-client';
-import {getComponent} from '/lib/xp/portal';
+import {base64Decode, base64Encode} from '/lib/text-encoding';
+import {readText} from '/lib/xp/io';
+import {getComponent, serviceUrl} from '/lib/xp/portal';
 
+import connectRepo from '../../../lib/appProxy/connectRepo.es';
 import createOrModifyNode from '../../../lib/appProxy/createOrModifyNode.es';
 import runAsSu from '../../../lib/appProxy/runAsSu.es';
 
 
 const MATCH_ALL_CARRIAGE_RETURNS = /\/r/g;
 const CAPTURE_HEAD = /<head[^>]*>([^]*?)<\/head>/m;
-//const REPLACE_ALL_LINK_HREF = /<link([^>]*?)href="([^"]+)"([^>]*?)<\/link>/gm;
 const REPLACE_ALL_LINK_HREF = /<link([^>]*?)href="([^"]+)"([^>]*)>/gm;
 const REPLACE_ALL_SCRIPT_SRC = /<script([^>]*?)src="([^"]+)"([^>]*)>/gm;
-//const CAPTURE_STYLE = /<style[^>]*>([^]*?)<\/style>/m;
+const MATCH_ALL_LINK = /<link[^]*?<\/link>/gm;
+const MATCH_ALL_SCRIPT = /<script[^]*?<\/script>/gm;
 const MATCH_ALL_STYLE = /<style[^]*?<\/style>/gm;
-//const CAPTURE_BODY = /<body([^]*?)<\/body>/m;
 const REPLACE_BODY = /[^]*?<body([^]*?)<\/body>[^]*/m;
 //const REMOVE_LINK = /<link[^]*?<\/link>/gm;
-const REMOVE_SCRIPT = /<script[^]*?<\/script>/gm;
+//const REMOVE_SCRIPT = /<script[^]*?<\/script>/gm;
+
+
+const connection = connectRepo();
+
+
+const uriCache = newCache({
+	size: 1000,
+	expire: 3600 // An hour
+});
+
+
+function uriToId(uri) {
+	return uriCache.get(uri, () => {
+		const res = clientRequest({url: uri});
+		//log.info(toStr({uri, res}));
+		if (res.status === 200) {
+			return runAsSu(
+				() => createOrModifyNode({
+					_name: uri,
+					data: {
+						contentType: res.contentType,
+						base64: base64Encode(res.body)
+					}
+				})
+			)._id;
+		}
+		log.error(`${res.status} ${uri}`);
+		return '';
+	});
+}
 
 
 export function get() {
@@ -27,79 +60,78 @@ export function get() {
 	const {url} = config;
 	if (!url) { throw new Error('Please input an url to proxy'); }
 	//const removeLink = config.removeLink !== false;
-	const removeScripts = config.removeScripts !== false;
+	//const removeScripts = config.removeScripts !== false;
 	const clientRes = clientRequest({url}); //log.info(toStr({clientRes}));
 
-	const resBody = clientRes.body.replace(MATCH_ALL_CARRIAGE_RETURNS, '');
+	let resBody = clientRes.body.replace(MATCH_ALL_CARRIAGE_RETURNS, '');
 
-	const urlsToMirror = [];
-	resBody.replace(REPLACE_ALL_LINK_HREF, (match, pre, href, post, offset, string) => {
-		log.info(toStr({
+	resBody = resBody.replace(REPLACE_ALL_LINK_HREF, (match, pre, href, post) => {
+		/*log.info(toStr({
 			match, pre, href, post, offset
-		}));
-		urlsToMirror.push(resolve(url, href));
-		return string;
+		}));*/
+		const newHref = serviceUrl({
+			service: 'getNode',
+			params: {
+				id: uriToId(resolve(url, href))
+			}
+		});
+		const link = `<link${pre}href="${newHref}"${post}>`;
+		//log.info(toStr({link}));
+		return link;
 	});
-	resBody.replace(REPLACE_ALL_SCRIPT_SRC, (match, pre, src, post, offset, string) => {
-		log.info(toStr({
+	resBody = resBody.replace(REPLACE_ALL_SCRIPT_SRC, (match, pre, src, post) => {
+		/*log.info(toStr({
 			match, pre, src, post, offset
-		}));
-		urlsToMirror.push(resolve(url, src));
-		return string;
+		}));*/
+		const newSrc = serviceUrl({
+			service: 'getNode',
+			params: {
+				id: uriToId(resolve(url, src))
+			}
+		});
+		const script = `<script${pre}href="${newSrc}"${post}>`;
+		//log.info(toStr({script}));
+		return script;
 	});
-	log.info(toStr({urlsToMirror}));
-
-	urlsToMirror.forEach((_name) => {
-		const mirrorRes = clientRequest({url: _name});
-		//log.info(toStr({_name, mirrorRes}));
-		if (mirrorRes.status === 200) {
-			runAsSu(
-				() => createOrModifyNode({
-					_name,
-					data: {
-						body: mirrorRes.body
-					}
-				})
-			);
-		}
-	});
-
-	/*let replaceLinkHrefMatch;
-	while ((replaceLinkHrefMatch = REPLACE_LINK_HREF.exec()) !== null) {
-
-	}*/
-
 
 	const head = CAPTURE_HEAD.exec(resBody)[1];
 	//log.info(toStr({head}));
 
-	//log.info(toStr({styleMatch: head.match(MATCH_STYLE)}));
-	//log.info(toStr({styleMatch: CAPTURE_STYLE.exec(head)[1]}));
 	const headEnd = [];
 	let aMatch;
+	while ((aMatch = MATCH_ALL_LINK.exec(head)) !== null) {
+		headEnd.push(aMatch[0]);
+	}
+	while ((aMatch = MATCH_ALL_SCRIPT.exec(head)) !== null) {
+		headEnd.push(aMatch[0]);
+	}
 	while ((aMatch = MATCH_ALL_STYLE.exec(head)) !== null) {
 		//log.info(`Found ${aMatch[0]}. Next starts at ${MATCH_ALL_STYLE.lastIndex}.`);
 		//log.info(toStr({aMatch}));
 		headEnd.push(aMatch[0]);
 	}
 
-	let body = resBody.replace(REPLACE_BODY, '<div$1</div>');
+	const body = resBody.replace(REPLACE_BODY, '<div$1</div>');
 
 	/*if (removeLink) {
 		body = body.replace(REMOVE_LINK, '');
 	}*/
 
-	if (removeScripts) {
+	/*if (removeScripts) {
 		body = body.replace(REMOVE_SCRIPT, '');
-	}
+	}*/
 	//log.info(toStr({body}));
 
-	body = runAsSu(() => createOrModifyNode({
+
+	//const id = uriToId(url); // TODO This does not modify response. Cache some other way?
+	//const node = connection.get(id);
+	const node = runAsSu(() => createOrModifyNode({
 		_name: url,
 		data: {
-			body
+			contentType: clientRes.contentType,
+			base64: base64Encode(body)
 		}
-	})).data.body;
+	}));
 
 	const pageContributions = {
 		headBegin: [],
@@ -115,8 +147,8 @@ export function get() {
 
 	//log.info(toStr({pageContributions}));
 	return {
-		body,
-		contentType: 'text/html; charset=UTF-8',
+		body: readText(base64Decode(node.data.base64)),
+		contentType: node.data.contentType,
 		pageContributions
 	};
 }
