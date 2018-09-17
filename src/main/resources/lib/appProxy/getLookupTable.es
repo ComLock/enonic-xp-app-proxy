@@ -1,6 +1,6 @@
-import runAsSu from './lib/appProxy/runAsSu.es';
-import {HASH_TO_URL_PATH} from './lib/appProxy/constants.es';
-import connectRepo from './lib/appProxy/connectRepo.es';
+import runAsSu from './runAsSu.es';
+import {HASH_TO_URL_PATH} from './constants.es';
+import connectRepo from './connectRepo.es';
 
 
 const connection = connectRepo();

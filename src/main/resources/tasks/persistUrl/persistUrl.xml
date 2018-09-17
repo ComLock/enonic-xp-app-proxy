@@ -6,15 +6,13 @@
 			<label>Url to persist</label>
 			<occurrences minimum="1" maximum="1"/>
 		</input>
-		<input name="name" type="Textline">
-			<label>Persist using name</label>
-			<occurrences minimum="1" maximum="1"/>
+		<input name="persistLookupTable" type="CheckBox">
+			<label>Persist lookup table</label>
+			<default>checked</default>
 		</input>
-		<input name="path" type="Textline">
-			<label>Persist under path</label>
-			<help-text>Defaults to /</help-text>
-			<default>/</default>
-			<occurrences minimum="0" maximum="1"/>
+		<input name="serviceUrl" type="Textline">
+			<label>Service url</label>
+			<occurrences minimum="1" maximum="1"/>
 		</input>
 	</config>
 </task>
