@@ -1,23 +1,22 @@
-import {resolve} from 'uri-js';
-
-import {newCache} from '/lib/cache';
-import {toStr} from '/lib/enonic/util';
+//import {toStr} from '/lib/enonic/util';
 import {forceArray} from '/lib/enonic/util/data';
 import {request as clientRequest} from '/lib/http-client';
-import {base64Decode, base64Encode} from '/lib/text-encoding';
-import {sanitize} from '/lib/xp/common';
-import {readText} from '/lib/xp/io';
-import {getComponent, serviceUrl} from '/lib/xp/portal';
+import {getComponent} from '/lib/xp/portal';
+import {
+	isRunning,
+	//get as getTask,
+	sleep as sleepMillis
+} from '/lib/xp/task';
 
-import connectRepo from '../../../lib/appProxy/connectRepo.es';
+import {HASH_TO_URL_NAME} from '../../../lib/appProxy/constants.es';
+import getLookupTable from '../../../lib/appProxy/getLookupTable.es';
 import createOrModifyNode from '../../../lib/appProxy/createOrModifyNode.es';
-import runAsSu from '../../../lib/appProxy/runAsSu.es';
+
+import replaceAttr from './replaceAttr.es';
 
 
 const MATCH_ALL_CARRIAGE_RETURNS = /\/r/g;
 const CAPTURE_HEAD = /<head[^>]*>([^]*?)<\/head>/m;
-const REPLACE_ALL_LINK_HREF = /<link([^>]*?)href="([^"]+)"([^>]*)>/gm;
-const REPLACE_ALL_SCRIPT_SRC = /<script([^>]*?)src="([^"]+)"([^>]*)>/gm;
 const MATCH_ALL_LINK = /<link[^]*?<\/link>/gm;
 const MATCH_ALL_SCRIPT = /<script[^]*?<\/script>/gm;
 const MATCH_ALL_STYLE = /<style[^]*?<\/style>/gm;
@@ -26,118 +25,45 @@ const REPLACE_BODY = /[^]*?<body([^]*?)<\/body>[^]*/m;
 //const REMOVE_SCRIPT = /<script[^]*?<\/script>/gm;
 
 
-const connection = connectRepo();
-
-
-const uriCache = newCache({
-	size: 1000,
-	expire: 3600 // An hour
-});
-
-
-function nodeFromUri(uri) {
-	const res = clientRequest({url: uri});
-	//log.info(toStr({uri, res}));
-	if (res.status !== 200) { return null; }
-	return runAsSu(
-		() => createOrModifyNode({
-			_name: uri,
-			data: {
-				contentType: res.contentType,
-				base64: base64Encode(res.body)
-			}
-		})
-	);
-}
-
-
-function getOrUpdateRepo(uri) {
-	const path = '/';
-	const key = `${path}${sanitize(uri)}`; //log.info(toStr({key}));
-	let node = runAsSu(() => connection.get(key)); //log.info(toStr({node}));
-	if (node) {
-		const oneHourAgo = new Date();
-		oneHourAgo.setHours(oneHourAgo.getHours() - 1);
-		//log.info(toStr({oneHourAgo}));
-		const modifiedTime = new Date(node.modifiedTime);
-		//log.info(toStr({modifiedTime}));
-		if (modifiedTime < oneHourAgo) {
-			//log.info('modifiedTime older than oneHourAgo :(');
-			node = nodeFromUri(uri);
-		} /*else {
-			log.info('modifiedTime newer than oneHourAgo :)');
-		}*/
-	} else {
-		node = nodeFromUri(uri);
-	}
-	return node;
-}
-
-
-function uriToId(uri) {
-	return uriCache.get(uri, () => {
-		const res = clientRequest({url: uri});
-		//log.info(toStr({uri, res}));
-		if (res.status === 200) {
-			return runAsSu(
-				() => createOrModifyNode({
-					_name: uri,
-					data: {
-						contentType: res.contentType,
-						base64: base64Encode(res.body)
-					}
-				})
-			)._id;
-		}
-		log.error(`${res.status} ${uri}`);
-		return '';
-	});
-}
-
-
 export function get() {
 	const {config} = getComponent();
 	const {url} = config;
 	if (!url) { throw new Error('Please input an url to proxy'); }
 	//const removeLink = config.removeLink !== false;
 	//const removeScripts = config.removeScripts !== false;
+
+	// TODO check if already in repo.
 	const clientRes = clientRequest({url}); //log.info(toStr({clientRes}));
 
 	let resBody = clientRes.body.replace(MATCH_ALL_CARRIAGE_RETURNS, '');
 
-	resBody = resBody.replace(REPLACE_ALL_LINK_HREF, (match, pre, href, post) => {
-		/*log.info(toStr({
-			match, pre, href, post, offset
-		}));*/
-		const node = getOrUpdateRepo(resolve(url, href));
-		if (!node) { return `<link${pre}${post}>`; }
-		const newHref = serviceUrl({
-			service: 'getNode',
-			params: {
-				//id: uriToId(resolve(url, href))
-				id: node._id
-			}
-		});
-		const link = `<link${pre}href="${newHref}"${post}>`;
-		//log.info(toStr({link}));
-		return link;
+	const refLookupTable = getLookupTable();
+
+	const refTasks = [];
+	resBody = replaceAttr({
+		str: resBody,
+		tagName: 'link',
+		attrName: 'href',
+		oldBaseUrl: url,
+		refLookupTable,
+		refTasks
 	});
-	resBody = resBody.replace(REPLACE_ALL_SCRIPT_SRC, (match, pre, src, post) => {
-		/*log.info(toStr({
-			match, pre, src, post, offset
-		}));*/
-		const node = getOrUpdateRepo(resolve(url, src));
-		if (!node) { return `<script${pre}${post}>`; }
-		const newSrc = serviceUrl({
-			service: 'getNode',
-			params: {
-				//id: uriToId(resolve(url, src))
-				id: node._id
-			}
-		});
-		const script = `<script${pre}href="${newSrc}"${post}>`;
-		//log.info(toStr({script}));
-		return script;
+
+	resBody = replaceAttr({
+		str: resBody,
+		tagName: 'script',
+		attrName: 'src',
+		oldBaseUrl: url,
+		refLookupTable,
+		refTasks
+	});
+
+	//log.info(toStr({refLookupTable}));
+	createOrModifyNode({
+		_name: HASH_TO_URL_NAME,
+		data: {
+			hashToUrl: refLookupTable
+		}
 	});
 
 	const head = CAPTURE_HEAD.exec(resBody)[1];
@@ -171,13 +97,13 @@ export function get() {
 
 	//const id = uriToId(url); // TODO This does not modify response. Cache some other way?
 	//const node = connection.get(id);
-	const node = runAsSu(() => createOrModifyNode({
+	/*const node = runAsSu(() => createOrModifyNode({
 		_name: url,
 		data: {
 			contentType: clientRes.contentType,
 			base64: base64Encode(body)
 		}
-	}));
+	}));*/
 
 	const pageContributions = {
 		headBegin: [],
@@ -191,10 +117,20 @@ export function get() {
 		});
 	}
 
+	refTasks.forEach((taskId) => { // wait until all tasks finished
+		while (isRunning(taskId)) { // wait until task finished
+			//const task = getTask(taskId);
+			//log.info(`Waiting for task to finish: ${toStr({task})}`);
+			sleepMillis(50); // NOTE This should be a low number to avoid delaying the response too much.
+		}
+	});
+
 	//log.info(toStr({pageContributions}));
 	return {
-		body: readText(base64Decode(node.data.base64)),
-		contentType: node.data.contentType,
+		//body: readText(base64Decode(node.data.base64)),
+		body,
+		//contentType: node.data.contentType,
+		contentType: clientRes.contentType,
 		pageContributions
 	};
 }

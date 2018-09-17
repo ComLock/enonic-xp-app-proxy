@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<task>
+	<description>Persist url</description>
+	<config>
+		<input name="absoluteUrl" type="Textline">
+			<label>Url to persist</label>
+			<occurrences minimum="1" maximum="1"/>
+		</input>
+		<input name="name" type="Textline">
+			<label>Persist using name</label>
+			<occurrences minimum="1" maximum="1"/>
+		</input>
+		<input name="path" type="Textline">
+			<label>Persist under path</label>
+			<help-text>Defaults to /</help-text>
+			<default>/</default>
+			<occurrences minimum="0" maximum="1"/>
+		</input>
+	</config>
+</task>
