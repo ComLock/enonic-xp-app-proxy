@@ -2,6 +2,7 @@ import {resolve} from 'uri-js';
 import fnv1a from '@sindresorhus/fnv1a';
 
 //import {toStr} from '/lib/enonic/util';
+import {submitNamed} from '/lib/xp/task';
 
 
 // https://developer.mozilla.org/en-US/docs/Web/CSS/url
@@ -12,12 +13,21 @@ export default function rewriteCss({
 	css,
 	baseUri,
 	//refLookupTable,
-	serviceUrl
+	serviceUrl,
+	refTasks
 }) {
 	//log.info(toStr({css, baseUri}));
 	const replacedCss = css.replace(CSS_REPLACE_ALL_URL, (match, url/*, string*/) => {
 		//log.info(toStr({string, match, url}));
 		const absoluteUrl = resolve(baseUri, url);
+		refTasks.push(submitNamed({
+			name: 'persistUrl',
+			config: {
+				absoluteUrl,
+				persistLookupTable: false,
+				serviceUrl
+			}
+		}));
 		/*log.info(toStr({
 			string, match, url, absoluteUrl
 		}));*/

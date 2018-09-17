@@ -5,7 +5,7 @@ import {toStr} from '/lib/enonic/util';
 import {request as clientRequest} from '/lib/http-client';
 import {base64Encode} from '/lib/text-encoding';
 import {
-	get as getTask,
+	//get as getTask,
 	list,
 	progress
 } from '/lib/xp/task';
@@ -17,14 +17,14 @@ import rewriteCss from '../../lib/appProxy/rewriteCss.es';
 import rewriteHtml from '../../lib/appProxy/rewriteHtml.es';
 import runAsSu from '../../lib/appProxy/runAsSu.es';
 //import getLookupTable from '../../lib/appProxy/getLookupTable.es';
-import sleepUntilFinished from '../../lib/appProxy/sleepUntilFinished.es';
+//import sleepUntilFinished from '../../lib/appProxy/sleepUntilFinished.es';
 
 
 const connection = connectRepo();
 
 
 function persistUrl({
-	absoluteUrl, path, name, serviceUrl, refLookupTable, refTasks
+	absoluteUrl, path, name, serviceUrl, refTasks//, refLookupTable
 }) {
 	//log.info(toStr({absoluteUrl, path, name}));
 	const res = clientRequest({url: absoluteUrl}); //log.info(toStr({res, absoluteUrl}));
@@ -44,7 +44,7 @@ function persistUrl({
 			html: res.body,
 			baseUri: absoluteUrl,
 			serviceUrl,
-			refLookupTable,
+			//refLookupTable,
 			refTasks
 		});
 	} else if (res.contentType.startsWith('text/css')) {
@@ -53,7 +53,7 @@ function persistUrl({
 			css: res.body,
 			baseUri: absoluteUrl,
 			serviceUrl,
-			refLookupTable,
+			//refLookupTable,
 			refTasks
 		});
 	}
